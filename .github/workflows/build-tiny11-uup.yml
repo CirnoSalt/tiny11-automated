@@ -1,0 +1,93 @@
+name: Build Tiny11 (26H2 zh-cn Pro)
+
+on:
+  workflow_dispatch:
+
+env:
+  ARIA2C_CONNECTIONS: '16'
+  ARIA2C_SPLIT: '16'
+  UUP_WD: C:\uup26
+  IMAGE_INDEX: 6
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 300
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unpack UUP download package
+        shell: powershell
+        run: |
+          $wd = "$env:UUP_WD"
+          if (Test-Path $wd) { Remove-Item $wd -Recurse -Force }
+          New-Item -ItemType Directory -Path $wd | Out-Null
+          Expand-Archive -Path "$env:GITHUB_WORKSPACE\uup\26h2_zh-cn_pro.zip" -DestinationPath $wd -Force
+          Get-ChildItem $wd | Select-Object Name, Length
+
+      # Runs the official uupdump download+convert pipeline. It downloads the
+      # UUP set from Microsoft's permanent CDN and assembles a bootable ISO.
+      - name: Download UUP set and build Windows 11 26H2 ISO
+        shell: cmd
+        working-directory: C:\uup26
+        run: uup_download_windows.cmd
+
+      - name: Locate assembled ISO
+        shell: powershell
+        run: |
+          $iso = Get-ChildItem "$env:UUP_WD" -Filter *.ISO -File -ErrorAction SilentlyContinue |
+                 Where-Object { $_.Length -gt 1GB } | Select-Object -First 1
+          if (-not $iso) {
+            $iso = Get-ChildItem "$env:UUP_WD" -Filter *.iso -File -ErrorAction SilentlyContinue |
+                   Select-Object -First 1
+          }
+          if (-not $iso) { throw "No ISO was produced under $env:UUP_WD" }
+          Write-Output "Assembled ISO: $($iso.FullName) ($([math]::Round($iso.Length/1GB,2)) GB)"
+          Add-Content -Path $env:GITHUB_ENV -Value "UUP_ISO=$($iso.FullName)"
+
+      - name: Install aria2c
+        shell: powershell
+        run: |
+          choco install aria2 -y --no-progress
+          aria2c --version | Select-Object -First 1
+
+      - name: Mount assembled ISO
+        shell: powershell
+        run: |
+          if (Get-DiskImage -ImagePath "$env:UUP_ISO" -ErrorAction SilentlyContinue) {
+            Get-DiskImage -ImagePath "$env:UUP_ISO" | Dismount-DiskImage -ErrorAction SilentlyContinue
+          }
+          $mount = Mount-DiskImage -ImagePath "$env:UUP_ISO" -PassThru -StorageType ISO
+          $driveLetter = ($mount | Get-Volume).DriveLetter
+          if (-not $driveLetter) { throw "Failed to mount ISO / obtain drive letter" }
+          Write-Output "Mounted ISO at drive: ${driveLetter}:"
+          Add-Content -Path $env:GITHUB_ENV -Value "ISO_DRIVE=$driveLetter"
+
+      - name: Run tiny11maker (Standard optimization, Pro)
+        shell: powershell
+        run: |
+          if (-not (Test-Path ".\scripts\tiny11maker-headless.ps1")) {
+            throw "tiny11maker-headless.ps1 not found"
+          }
+          .\scripts\tiny11maker-headless.ps1 -ISO "$env:ISO_DRIVE" -INDEX $env:IMAGE_INDEX -SkipCleanup
+          Write-Output "tiny11 build finished"
+
+      - name: Verify tiny11 ISO
+        shell: powershell
+        run: |
+          $iso = ".\scripts\tiny11.iso"
+          if (-not (Test-Path $iso)) {
+            $iso = Get-ChildItem ".\scripts" -Filter *.iso -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if (-not $iso) { throw "No tiny11.iso produced" }
+          Add-Content -Path $env:GITHUB_ENV -Value "OUT_ISO=$($iso.FullName)"
+          Write-Output "Output ISO: $($iso.FullName) ($([math]::Round($iso.Length/1GB,2)) GB)"
+
+      - name: Upload Tiny11 ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiny11-26h2-zhcn-pro
+          path: ${{ env.OUT_ISO }}
+          if-no-files-found: error
+          retention-days: 30
