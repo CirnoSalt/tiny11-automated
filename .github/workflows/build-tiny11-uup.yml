@@ -110,11 +110,8 @@ jobs:
           Add-Content -Path $env:GITHUB_ENV -Value "ISO_DRIVE=$driveLetter"
           Write-Output "已挂载到 ${driveLetter}:"
 
-      - name: Install aria2c
-        shell: powershell
-        run: |
-          choco install aria2 -y --no-progress
-          aria2c --version | Select-Object -First 1
+      # 说明：无需在此安装 aria2。UUP 取料用其自带内嵌的 aria2c，
+      #       tiny11maker 也不需要系统 aria2（runner 上 choco 已预装，装会失败）。
 
       # 企业版作为 UUP 的"附加版本"，tiny11 无内置索引映射，这里显式定位企业版图像索引
       - name: Resolve Enterprise image index
