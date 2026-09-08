@@ -16,6 +16,14 @@
 
 <div align="center">
 
+> ## 🇨🇳 中文用户看这里
+> 本分支新增：**全中文手册 + UUP 自动取料（无需找 ISO 下载链接）**。
+> 👉 请阅读 [**README-zh-CN.md**](README-zh-CN.md)（三步在 Actions 里做中文 Tiny11）｜或本地运行 `.\scripts\build-tiny11-local.ps1 -Version 26H2 -Language zh-cn -Edition pro`
+
+</div>
+
+<div align="center">
+
 [🚀 Quick Start](#-quick-start) • [📥 Download](#-downloads) • [📖 Documentation](#-documentation) • [🤝 Contributing](#-contributing) • [💬 Community](#-community)
 
 </div>

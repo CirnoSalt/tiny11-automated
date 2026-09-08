@@ -1,0 +1,46 @@
+{
+    "updated": "2026-09-09",
+    "source": "uupdump.net 快照。新构建发布后请更新 build_id，或让用户用 UUP_BUILD_ID 覆盖。",
+    "versions": [
+        {
+            "id": "26H2",
+            "category": "w11-26h2",
+            "build": "26300.9278",
+            "build_id": "def45c01-379e-4ded-8b1b-b870faaef6f8",
+            "arch": "amd64",
+            "note": "26H2（Release Preview 预览版，尚未正式发布）"
+        },
+        {
+            "id": "25H2",
+            "category": "w11-25h2",
+            "build": "26200.9278",
+            "build_id": "c1c737c2-f2d9-4824-bb5b-1af515179099",
+            "arch": "amd64",
+            "note": "25H2（当前稳定版，推荐日常使用）"
+        },
+        {
+            "id": "24H2",
+            "category": "w11-24h2",
+            "build": "26100.9278",
+            "build_id": "d922b79f-142d-4cf8-896b-515abfd01e66",
+            "arch": "amd64",
+            "note": "24H2（上一代稳定版）"
+        }
+    ],
+    "languages": {
+        "zh-cn": "简体中文",
+        "zh-tw": "繁體中文",
+        "en-us": "English (US)",
+        "ja-jp": "日本語",
+        "ko-kr": "한국어",
+        "ru-ru": "Русский",
+        "de-de": "Deutsch",
+        "fr-fr": "Français"
+    },
+    "editions": {
+        "home":       { "name": "家庭版 Home",       "uup": "core",          "autodl": 2, "tiny11_index": 1, "base": true  },
+        "pro":        { "name": "专业版 Pro",        "uup": "professional",  "autodl": 2, "tiny11_index": 6, "base": true  },
+        "education":  { "name": "教育版 Education",  "uup": "education",     "autodl": 2, "tiny11_index": 4, "base": true  },
+        "enterprise": { "name": "企业版 Enterprise", "uup": "professional",  "autodl": 3, "tiny11_index": 6, "base": false, "virtual": "Enterprise" }
+    }
+}

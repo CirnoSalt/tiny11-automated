@@ -1,13 +1,53 @@
-name: Build Tiny11 (26H2 zh-cn Pro)
+name: Build Tiny11 (UUP - 无需下载链接)
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Windows 版本'
+        type: choice
+        default: '26H2'
+        options:
+          - '26H2'
+          - '25H2'
+          - '24H2'
+      language:
+        description: '语言 / Language'
+        type: choice
+        default: 'zh-cn'
+        options:
+          - 'zh-cn'
+          - 'zh-tw'
+          - 'en-us'
+          - 'ja-jp'
+          - 'ko-kr'
+          - 'ru-ru'
+          - 'de-de'
+          - 'fr-fr'
+      edition:
+        description: '版本 / Edition'
+        type: choice
+        default: 'pro'
+        options:
+          - 'pro'
+          - 'home'
+          - 'education'
+          - 'enterprise'
+      uup_build_id:
+        description: '（可选，高级）UUP build id；留空自动解析（快照+尝试最新），想自己指定最新可填'
+        required: false
+        default: ''
+      include_updates:
+        description: '包含最新累积更新'
+        type: boolean
+        default: true
+      skip_cleanup:
+        description: '调试：保留中间临时文件'
+        type: boolean
+        default: false
 
 env:
-  ARIA2C_CONNECTIONS: '16'
-  ARIA2C_SPLIT: '16'
   UUP_WD: C:\uup26
-  IMAGE_INDEX: 6
 
 jobs:
   build:
@@ -17,18 +57,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Unpack UUP download package
+      - name: Resolve & download UUP package
+        shell: powershell
+        run: |
+          $argsArray = @(
+            "-Version", "${{ inputs.version }}",
+            "-Language", "${{ inputs.language }}",
+            "-Edition", "${{ inputs.edition }}",
+            "-IncludeUpdates:${{ inputs.include_updates }}"
+          )
+          if ("${{ inputs.uup_build_id }}" -ne "") { $argsArray += "-BuildId", "${{ inputs.uup_build_id }}" }
+          $zip = (& "$env:GITHUB_WORKSPACE\scripts\uup-resolve.ps1" @argsArray | Select-Object -Last 1)
+          $zip = [string]$zip
+          if (-not $zip -or -not (Test-Path $zip)) { throw "未获得 UUP 下载包" }
+          Add-Content -Path $env:GITHUB_ENV -Value "UUP_ZIP=$zip"
+
+      - name: Unpack UUP package
         shell: powershell
         run: |
           $wd = "$env:UUP_WD"
           if (Test-Path $wd) { Remove-Item $wd -Recurse -Force }
-          New-Item -ItemType Directory -Path $wd | Out-Null
-          Expand-Archive -Path "$env:GITHUB_WORKSPACE\uup\26h2_zh-cn_pro.zip" -DestinationPath $wd -Force
-          Get-ChildItem $wd | Select-Object Name, Length
+          New-Item -ItemType Directory -Path $wd -Force | Out-Null
+          Expand-Archive -Path $env:UUP_ZIP -DestinationPath $wd -Force
+          Get-ChildItem $wd | Select-Object -First 5
 
-      # Runs the official uupdump download+convert pipeline. It downloads the
-      # UUP set from Microsoft's permanent CDN and assembles a bootable ISO.
-      - name: Download UUP set and build Windows 11 26H2 ISO
+      - name: Assemble Windows 11 ISO from UUP
         shell: cmd
         working-directory: C:\uup26
         run: uup_download_windows.cmd
@@ -38,13 +91,22 @@ jobs:
         run: |
           $iso = Get-ChildItem "$env:UUP_WD" -Filter *.ISO -File -ErrorAction SilentlyContinue |
                  Where-Object { $_.Length -gt 1GB } | Select-Object -First 1
-          if (-not $iso) {
-            $iso = Get-ChildItem "$env:UUP_WD" -Filter *.iso -File -ErrorAction SilentlyContinue |
-                   Select-Object -First 1
-          }
-          if (-not $iso) { throw "No ISO was produced under $env:UUP_WD" }
-          Write-Output "Assembled ISO: $($iso.FullName) ($([math]::Round($iso.Length/1GB,2)) GB)"
+          if (-not $iso) { $iso = Get-ChildItem "$env:UUP_WD" -Filter *.iso -File | Select-Object -First 1 }
+          if (-not $iso) { throw "在 $env:UUP_WD 未找到组装好的 ISO" }
           Add-Content -Path $env:GITHUB_ENV -Value "UUP_ISO=$($iso.FullName)"
+          Write-Output "ISO: $($iso.FullName) ($([math]::Round($iso.Length/1GB,2)) GB)"
+
+      - name: Mount assembled ISO
+        shell: powershell
+        run: |
+          if (Get-DiskImage -ImagePath $env:UUP_ISO -ErrorAction SilentlyContinue) {
+            Get-DiskImage -ImagePath $env:UUP_ISO | Dismount-DiskImage -ErrorAction SilentlyContinue
+          }
+          $m = Mount-DiskImage -ImagePath $env:UUP_ISO -PassThru -StorageType ISO
+          $driveLetter = ($m | Get-Volume).DriveLetter
+          if (-not $driveLetter) { throw "挂载失败" }
+          Add-Content -Path $env:GITHUB_ENV -Value "ISO_DRIVE=$driveLetter"
+          Write-Output "已挂载到 ${driveLetter}:"
 
       - name: Install aria2c
         shell: powershell
@@ -52,42 +114,46 @@ jobs:
           choco install aria2 -y --no-progress
           aria2c --version | Select-Object -First 1
 
-      - name: Mount assembled ISO
+      # 企业版作为 UUP 的"附加版本"，tiny11 无内置索引映射，这里显式定位企业版图像索引
+      - name: Resolve Enterprise image index
+        if: env.UUP_USE_ENTERPRISE == 'True'
         shell: powershell
         run: |
-          if (Get-DiskImage -ImagePath "$env:UUP_ISO" -ErrorAction SilentlyContinue) {
-            Get-DiskImage -ImagePath "$env:UUP_ISO" | Dismount-DiskImage -ErrorAction SilentlyContinue
+          $src = "${env:ISO_DRIVE}:\sources\install.wim"
+          if (-not (Test-Path $src)) { $src = "${env:ISO_DRIVE}:\sources\install.esd" }
+          $ent = Get-WindowsImage -ImagePath $src -ErrorAction SilentlyContinue |
+                 Where-Object { $_.ImageName -like 'Windows 11 Enterprise*' } | Select-Object -First 1
+          if ($ent) {
+            Add-Content -Path $env:GITHUB_ENV -Value "TINY11_INDEX=$($ent.ImageIndex)"
+            Write-Output "企业版图像 '$($ent.ImageName)' 索引=$($ent.ImageIndex)"
+          } else {
+            Write-Warning "未定位到企业版图像，沿用 tiny11 索引 $env:TINY11_INDEX（可能不对）"
           }
-          $mount = Mount-DiskImage -ImagePath "$env:UUP_ISO" -PassThru -StorageType ISO
-          $driveLetter = ($mount | Get-Volume).DriveLetter
-          if (-not $driveLetter) { throw "Failed to mount ISO / obtain drive letter" }
-          Write-Output "Mounted ISO at drive: ${driveLetter}:"
-          Add-Content -Path $env:GITHUB_ENV -Value "ISO_DRIVE=$driveLetter"
 
-      - name: Run tiny11maker (Standard optimization, Pro)
+      - name: Run tiny11 Standard build
         shell: powershell
         run: |
-          if (-not (Test-Path ".\scripts\tiny11maker-headless.ps1")) {
-            throw "tiny11maker-headless.ps1 not found"
-          }
-          .\scripts\tiny11maker-headless.ps1 -ISO "$env:ISO_DRIVE" -INDEX $env:IMAGE_INDEX -SkipCleanup
-          Write-Output "tiny11 build finished"
+          if (-not (Test-Path .\scripts\tiny11maker-headless.ps1)) { throw "脚本缺失" }
+          $p = @("-ISO", "$env:ISO_DRIVE", "-INDEX", "$env:TINY11_INDEX")
+          if ("${{ inputs.skip_cleanup }}" -eq 'true') { $p += "-SkipCleanup" }
+          .\scripts\tiny11maker-headless.ps1 @p
+          Write-Output "tiny11 构建完成 (INDEX=$env:TINY11_INDEX)"
 
-      - name: Verify tiny11 ISO
+      - name: Verify & locate output
+        id: verify
         shell: powershell
         run: |
-          $iso = ".\scripts\tiny11.iso"
-          if (-not (Test-Path $iso)) {
-            $iso = Get-ChildItem ".\scripts" -Filter *.iso -File -ErrorAction SilentlyContinue | Select-Object -First 1
-          }
-          if (-not $iso) { throw "No tiny11.iso produced" }
-          Add-Content -Path $env:GITHUB_ENV -Value "OUT_ISO=$($iso.FullName)"
-          Write-Output "Output ISO: $($iso.FullName) ($([math]::Round($iso.Length/1GB,2)) GB)"
+          $o = Get-ChildItem ".\scripts" -Filter *.iso -File |
+               Where-Object { $_.Name -like 'tiny11*' } | Select-Object -First 1
+          if (-not $o) { $o = Get-ChildItem ".\scripts" -Filter *.iso -File | Select-Object -Last 1 }
+          if (-not $o) { throw "未找到 tiny11 产物" }
+          Write-Output "输出: $($o.FullName) ($([math]::Round($o.Length/1GB,2)) GB)"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "iso=$($o.FullName)"
 
       - name: Upload Tiny11 ISO artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tiny11-26h2-zhcn-pro
-          path: ${{ env.OUT_ISO }}
+          name: tiny11-${{ inputs.version }}-${{ inputs.language }}-${{ inputs.edition }}
+          path: ${{ steps.verify.outputs.iso }}
           if-no-files-found: error
           retention-days: 30
