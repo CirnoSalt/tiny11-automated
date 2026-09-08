@@ -49,10 +49,10 @@ param(
     [string]$Edition,
     [string]$BuildId,
     [switch]$IncludeUpdates = $true,
-    [ValidateScript({ Test-Path $_ -PathType Container })]
+    # 可选：下载包输出目录（默认 scripts\downloads）。默认目录可能尚不存在，故不在参数期校验，脚本内会先创建
     [string]$OutDir,
     [switch]$DryRun,
-    # 可选：本地可能需要肉炸代理（境外网络）。示例：-Proxy 'http://127.0.0.1:10808'
+    # 可选：本地可能需要代理（境外网络）。示例：-Proxy 'http://127.0.0.1:10808'
     [string]$Proxy
 )
 
