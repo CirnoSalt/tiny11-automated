@@ -60,14 +60,15 @@ jobs:
       - name: Resolve & download UUP package
         shell: powershell
         run: |
-          $argsArray = @(
-            "-Version", "${{ inputs.version }}",
-            "-Language", "${{ inputs.language }}",
-            "-Edition", "${{ inputs.edition }}",
-            "-IncludeUpdates:${{ inputs.include_updates }}"
-          )
-          if ("${{ inputs.uup_build_id }}" -ne "") { $argsArray += "-BuildId", "${{ inputs.uup_build_id }}" }
-          $zip = (& "$env:GITHUB_WORKSPACE\scripts\uup-resolve.ps1" @argsArray | Select-Object -Last 1)
+          $sp = @{
+            Version        = "${{ inputs.version }}"
+            Language       = "${{ inputs.language }}"
+            Edition        = "${{ inputs.edition }}"
+            IncludeUpdates = (${{ inputs.include_updates }})
+          }
+          if ("${{ inputs.uup_build_id }}" -ne "") { $sp.BuildId = "${{ inputs.uup_build_id }}" }
+          # 用哈希表展开（@sp）而非数组展开：数组展开无法可靠绑定命名参数
+          $zip = (& "$env:GITHUB_WORKSPACE\scripts\uup-resolve.ps1" @sp | Select-Object -Last 1)
           $zip = [string]$zip
           if (-not $zip -or -not (Test-Path $zip)) { throw "未获得 UUP 下载包" }
           Add-Content -Path $env:GITHUB_ENV -Value "UUP_ZIP=$zip"
