@@ -103,8 +103,21 @@
       "language": "en-us",
       "checksum_sha256": null,
       "size_bytes": null
+    },
+    "msft-playwright-25h2-20260920": {
+      "build_id": "msft-playwright-25h2-20260920",
+      "build_number": "Latest",
+      "version": "25H2",
+      "title": "Windows 11 25H2",
+      "iso_url": "https://software.download.prss.microsoft.com/dbazure/Win11_25H2_English_x64_v2.iso?t=90c33626-661f-4792-9959-1f2f3e1d0a3e&P1=1789955207&P2=602&P3=2&P4=FDjNfesQBVZU0UJzhrDU3EbejWWicynBBlhDlz%2fRgj04yC%2fDMU0hDapSkBIxXBM3I9DIVLgU4ma4crvlnln4S4MvwYI8I%2f42byrptS7M9phG3sSBI6UWUXJXUnC4NL6dyOmKANmq0RD1ObKD3VlYNveHf7d4qkjSOavG72Fq6wSs%2bN7o3lsnt1TsiURhCW%2fWvbHQU7TZFNerYqhXa5L%2bwP3sMNjh3N%2fUNrXIw05IjIfcSogxT%2baEr14HBUzBKrtJfEMijc6SKhuxwdLAacWxLsaqcpUbvtQusQh%2bvYnCqVVz%2f8dN8qimXPFf44ecSJRUlzxLqk1iMDGo5PBsFmnNqQ%3d%3d",
+      "detected_date": "2026-09-20T01:46:49.198714",
+      "architecture": "amd64",
+      "channel": "retail",
+      "language": "en-us",
+      "checksum_sha256": null,
+      "size_bytes": null
     }
   },
-  "last_check": "2026-09-13T01:30:32.563512",
-  "check_count": 8
+  "last_check": "2026-09-20T01:46:50.179493",
+  "check_count": 9
 }
